@@ -22,13 +22,11 @@ import android.provider.Settings
 import android.view.*
 import android.widget.*
 import androidx.core.app.NotificationCompat
-import com.google.android.material.button.MaterialButton
-import com.google.android.material.card.MaterialCardView
 
 class OverlayService : Service() {
     private lateinit var windowManager: WindowManager
     private lateinit var fab: TextView
-    private lateinit var menuCard: MaterialCardView
+    private lateinit var menuContainer: LinearLayout
     private lateinit var fpsText: TextView
     private lateinit var ramText: TextView
     private lateinit var batteryText: TextView
@@ -55,7 +53,7 @@ class OverlayService : Service() {
             handler.post(statsUpdater)
             startFpsCounter()
         } catch (e: Exception) {
-            Toast.makeText(this, "Ошибка: ${e.message}", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Ошибка меню: ${e.message}", Toast.LENGTH_LONG).show()
             stopSelf()
         }
     }
@@ -141,15 +139,18 @@ class OverlayService : Service() {
             }
             setOnClickListener {
                 fab.visibility = View.GONE
-                menuCard.visibility = View.VISIBLE
+                menuContainer.visibility = View.VISIBLE
                 updateStats()
             }
         }
 
-        menuCard = MaterialCardView(this).apply {
-            setCardBackgroundColor(Color.parseColor("#EE1E1E1E"))
-            radius = 60f
-            setCardElevation(30f)
+        menuContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(40, 40, 40, 40)
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#F01E1E1E"))
+                cornerRadius = 60f
+            }
             visibility = View.GONE
         }
 
@@ -158,7 +159,6 @@ class OverlayService : Service() {
         }
         val menuLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(40, 40, 40, 40)
         }
 
         menuLayout.addView(TextView(this).apply {
@@ -216,7 +216,7 @@ class OverlayService : Service() {
         menuLayout.addView(createBtn("Закрыть оверлей") { stopSelf() })
 
         scroll.addView(menuLayout)
-        menuCard.addView(scroll)
+        menuContainer.addView(scroll)
 
         val closeMenuBtn = TextView(this).apply {
             text = "X"
@@ -230,7 +230,7 @@ class OverlayService : Service() {
             }
             setOnClickListener {
                 fab.visibility = View.VISIBLE
-                menuCard.visibility = View.GONE
+                menuContainer.visibility = View.GONE
             }
         }
         val closeParams = FrameLayout.LayoutParams(dp(50), dp(50)).apply {
@@ -240,7 +240,7 @@ class OverlayService : Service() {
         }
         container.addView(closeMenuBtn, closeParams)
         container.addView(fab)
-        container.addView(menuCard)
+        container.addView(menuContainer)
 
         fab.setOnTouchListener(object : View.OnTouchListener {
             private var initialX = 0
@@ -263,7 +263,9 @@ class OverlayService : Service() {
                         return true
                     }
                     MotionEvent.ACTION_UP -> {
-                        if (Math.abs(event.rawX - initialTouchX) < 10 && Math.abs(event.rawY - initialTouchY) < 10) v?.performClick()
+                        if (Math.abs(event.rawX - initialTouchX) < 20 && Math.abs(event.rawY - initialTouchY) < 20) {
+                            v?.performClick()
+                        }
                         return true
                     }
                 }
@@ -277,10 +279,17 @@ class OverlayService : Service() {
         setTextColor(Color.LTGRAY); textSize = 16f; setPadding(0, 5, 0, 5)
     }
 
-    private fun createBtn(text: String, onClick: () -> Unit) = MaterialButton(this).apply {
-        this.text = text; isAllCaps = false; setTextColor(Color.WHITE)
-        setBackgroundColor(Color.parseColor("#333333")); cornerRadius = 30; textSize = 14f
-        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 15 }
+    private fun createBtn(text: String, onClick: () -> Unit) = TextView(this).apply {
+        this.text = text
+        setTextColor(Color.WHITE)
+        textSize = 14f
+        gravity = Gravity.CENTER
+        setPadding(20, 30, 20, 30)
+        background = GradientDrawable().apply {
+            setColor(Color.parseColor("#333333"))
+            cornerRadius = 30f
+        }
+        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 20 }
         setOnClickListener { onClick() }
     }
 
