@@ -72,13 +72,9 @@ class OverlayService : Service() {
         super.onCreate()
         startForegroundService()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        try {
-            createOverlay()
-            handler.post(statsUpdater)
-            startFpsCounter()
-        } catch (e: Exception) {
-            // error silently ignored to prevent crash
-        }
+        createOverlay()
+        handler.post(statsUpdater)
+        startFpsCounter()
     }
 
     private val statsUpdater = object : Runnable {
@@ -497,4 +493,9 @@ class OverlayService : Service() {
         } else {
             dimmerView?.let { windowManager.removeView(it) }
             isDimmerVisible = false
-   
+        }
+    }
+
+    private fun toggleNightMode(show: Boolean) {
+        if (show) {
+            val params = WindowManager.La
