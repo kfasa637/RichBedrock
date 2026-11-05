@@ -10,6 +10,7 @@ import android.content.ClipboardManager
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.CountDownTimer
@@ -145,22 +146,26 @@ class OverlayService : Service() {
             PixelFormat.TRANSLUCENT
         )
         params.gravity = Gravity.TOP or Gravity.START
-        params.x = 100
+        params.x = 50
         params.y = 200
 
         val container = FrameLayout(this)
 
+        // --- НОВЫЙ ДИЗАЙН КНОПКИ "R" ---
+        val fabBg = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Color.parseColor("#00FF87"), Color.parseColor("#00A854")))
+        fabBg.shape = GradientDrawable.OVAL
+        fabBg.setStroke(3, Color.WHITE)
+
         fab = TextView(this).apply {
             text = "R"
-            setTextColor(Color.WHITE)
-            textSize = 22f
+            setTextColor(Color.BLACK)
+            setTypeface(typeface, Typeface.BOLD)
+            textSize = 26f
             gravity = Gravity.CENTER
-            setPadding(30, 30, 30, 30)
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#1A1A1A"))
-                setStroke(4, Color.parseColor("#3DDC84"))
-            }
+            setPadding(35, 35, 35, 35)
+            background = fabBg
+            elevation = 15f // Тень
+            
             setOnClickListener {
                 fab.visibility = View.GONE
                 mainMenu.visibility = View.VISIBLE
@@ -172,9 +177,10 @@ class OverlayService : Service() {
             background = GradientDrawable().apply {
                 setColor(Color.parseColor("#F0101010"))
                 cornerRadius = 30f
-                setStroke(2, Color.parseColor("#333333"))
+                setStroke(2, Color.parseColor("#3DDC84"))
             }
             visibility = View.GONE
+            elevation = 20f
         }
 
         val titleBar = LinearLayout(this).apply {
@@ -191,16 +197,21 @@ class OverlayService : Service() {
             text = "RICH PVP"
             setTextColor(Color.parseColor("#3DDC84"))
             textSize = 16f
-            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTypeface(typeface, Typeface.BOLD)
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
         })
 
+        // Кнопка "Свернуть" (крестик)
         titleBar.addView(TextView(this).apply {
             text = "✕"
-            setTextColor(Color.RED)
-            textSize = 22f
+            setTextColor(Color.WHITE)
+            textSize = 24f
             setPadding(20, 0, 0, 0)
-            setOnClickListener { stopSelf() }
+            setOnClickListener { 
+                // Теперь крестик просто сворачивает меню и возвращает кнопку R
+                mainMenu.visibility = View.GONE
+                fab.visibility = View.VISIBLE 
+            }
         })
 
         titleBar.setOnTouchListener(object : View.OnTouchListener {
@@ -354,6 +365,11 @@ class OverlayService : Service() {
         createButtonRow("Copy: Good Luck") { copyToClipboard("Good Luck!") }
         createButtonRow("Copy: Rush") { copyToClipboard("Rushing!") }
         createButtonRow("Copy: Defend") { copyToClipboard("Defending!") }
+        
+        // НОВАЯ КНОПКА ДЛЯ ПОЛНОГО ВЫКЛЮЧЕНИЯ ОВЕРЛЕЯ
+        createButtonRow("❌ STOP OVERLAY") { 
+            stopSelf() 
+        }
     }
 
     private fun copyToClipboard(text: String) {
@@ -475,20 +491,4 @@ class OverlayService : Service() {
                 }
                 override fun onFinish() {
                     timerView?.text = "$name: READY!"
-                    timerView?.setTextColor(Color.parseColor("#3DDC84"))
-                }
-            }.start()
-        } else {
-            timerView?.let { windowManager.removeView(it) }
-            isTimerVisible = false
-            timerCountdown?.cancel()
-        }
-    }
-
-    private fun createRow(name: String, value: String): TextView {
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(20, 20, 20, 20)
-            gravity = Gravity.CENTER_VERTICAL
-            layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 10 }
-            background = Grad
+                    timerView?.setTextColor(Color.parseColor("#3
