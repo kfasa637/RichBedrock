@@ -5,17 +5,22 @@ import android.app.ActivityManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
+import android.os.CountDownTimer
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.view.*
 import android.widget.*
 import androidx.core.app.NotificationCompat
+import java.text.SimpleDateFormat
+import java.util.*
 
 class OverlayService : Service() {
 
@@ -25,13 +30,36 @@ class OverlayService : Service() {
     private lateinit var contentContainer: LinearLayout
     
     private lateinit var fpsText: TextView
+    private lateinit var pingText: TextView
     private lateinit var ramText: TextView
-
+    private lateinit var cpsText: TextView
+    private lateinit var stopwatchText: TextView
+    
     private var crosshairView: View? = null
+    private var dimmerView: View? = null
+    private var vignetteView: View? = null
+    private var filterView: View? = null
+    private var timerView: TextView? = null
+    private var itemCounterView: TextView? = null
+    
     private var isCrosshairVisible = false
+    private var isDimmerVisible = false
+    private var isVignetteVisible = false
+    private var isFilterVisible = false
+    private var isTimerVisible = false
+    private var isStopwatchRunning = false
+    private var isCounterVisible = false
+    
+    private var crosshairStyle = 0 // 0: +, 1: x, 2: .
+    private var crosshairColor = "#3DDC84"
+    private var cpsCount = 0
+    private var itemCount = 0
+    private var stopwatchSeconds = 0
     
     private var lastFrameTime = 0L
     private var frames = 0
+    private var timerCountdown: CountDownTimer? = null
+    
     private val handler = Handler(Looper.getMainLooper())
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -52,11 +80,35 @@ class OverlayService : Service() {
     private val statsUpdater = object : Runnable {
         override fun run() {
             try {
+                // RAM
                 val am = getSystemService(ACTIVITY_SERVICE) as ActivityManager
                 val mi = ActivityManager.MemoryInfo()
                 am.getMemoryInfo(mi)
                 if (::ramText.isInitialized) ramText.text = "${(mi.totalMem - mi.availMem) / (1024 * 1024)} MB"
+
+                // Ping
+                Thread {
+                    try {
+                        val start = System.currentTimeMillis()
+                        val reachable = java.net.InetAddress.getByName("8.8.8.8").isReachable(1000)
+                        val time = System.currentTimeMillis() - start
+                        handler.post { if (::pingText.isInitialized) pingText.text = if (reachable) "${time} ms" else "ERR" }
+                    } catch (e: Exception) {}
+                }.start()
+
+                // Stopwatch
+                if (isStopwatchRunning) {
+                    stopwatchSeconds++
+                    if (::stopwatchText.isInitialized) {
+                        val mins = stopwatchSeconds / 60
+                        val secs = stopwatchSeconds % 60
+                        stopwatchText.text = String.format("%02d:%02d", mins, secs)
+                    }
+                }
             } catch (e: Exception) {}
+            
+            cpsCount = 0
+            if (::cpsText.isInitialized) cpsText.text = "$cpsCount"
             handler.postDelayed(this, 1000)
         }
     }
@@ -69,7 +121,6 @@ class OverlayService : Service() {
                     val diff = frameTimeNanos - lastFrameTime
                     frames++
                     if (diff >= 1_000_000_000L) {
-                        // ИСПРАВЛЕНО: теперь toInt() вместо roundToInt()
                         val fps = (frames * 1_000_000_000L / diff).toInt()
                         frames = 0
                         lastFrameTime = frameTimeNanos
@@ -137,7 +188,7 @@ class OverlayService : Service() {
         }
 
         titleBar.addView(TextView(this).apply {
-            text = "RICH CLIENT"
+            text = "RICH PVP"
             setTextColor(Color.parseColor("#3DDC84"))
             textSize = 16f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
@@ -180,7 +231,7 @@ class OverlayService : Service() {
         val bodyLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(20, 20, 20, 20)
-            layoutParams = LinearLayout.LayoutParams(dp(320), dp(350))
+            layoutParams = LinearLayout.LayoutParams(dp(340), dp(420))
         }
 
         val tabsLayout = LinearLayout(this).apply {
@@ -197,14 +248,20 @@ class OverlayService : Service() {
         }
         contentScroll.addView(contentContainer)
 
-        val tabStats = createTab("Stats")
-        val tabRender = createTab("Render")
+        val tabHud = createTab("HUD")
+        val tabPvp = createTab("PvP Tools")
+        val tabBedwars = createTab("Bedwars")
+        val tabMacros = createTab("Macros")
 
-        tabStats.setOnClickListener { showStatsTab(); highlightTab(tabStats, tabRender) }
-        tabRender.setOnClickListener { showRenderTab(); highlightTab(tabRender, tabStats) }
+        tabHud.setOnClickListener { showHudTab(); highlightTab(tabHud, listOf(tabPvp, tabBedwars, tabMacros)) }
+        tabPvp.setOnClickListener { showPvpTab(); highlightTab(tabPvp, listOf(tabHud, tabBedwars, tabMacros)) }
+        tabBedwars.setOnClickListener { showBedwarsTab(); highlightTab(tabBedwars, listOf(tabHud, tabPvp, tabMacros)) }
+        tabMacros.setOnClickListener { showMacrosTab(); highlightTab(tabMacros, listOf(tabHud, tabPvp, tabBedwars)) }
 
-        tabsLayout.addView(tabStats)
-        tabsLayout.addView(tabRender)
+        tabsLayout.addView(tabHud)
+        tabsLayout.addView(tabPvp)
+        tabsLayout.addView(tabBedwars)
+        tabsLayout.addView(tabMacros)
 
         bodyLayout.addView(tabsLayout)
         bodyLayout.addView(contentScroll)
@@ -214,8 +271,8 @@ class OverlayService : Service() {
         container.addView(mainMenu)
         windowManager.addView(container, params)
 
-        showStatsTab()
-        highlightTab(tabStats, tabRender)
+        showHudTab()
+        highlightTab(tabHud, listOf(tabPvp, tabBedwars, tabMacros))
     }
 
     private fun createTab(name: String) = TextView(this).apply {
@@ -226,85 +283,88 @@ class OverlayService : Service() {
         background = GradientDrawable().apply { cornerRadius = 15f; setColor(Color.TRANSPARENT) }
     }
 
-    private fun highlightTab(selected: TextView, other: TextView) {
+    private fun highlightTab(selected: TextView, others: List<TextView>) {
         selected.setTextColor(Color.parseColor("#3DDC84"))
         selected.background = GradientDrawable().apply { cornerRadius = 15f; setColor(Color.parseColor("#2A2A2A")) }
-        other.setTextColor(Color.LTGRAY)
-        other.background = GradientDrawable().apply { cornerRadius = 15f; setColor(Color.TRANSPARENT) }
+        others.forEach {
+            it.setTextColor(Color.LTGRAY)
+            it.background = GradientDrawable().apply { cornerRadius = 15f; setColor(Color.TRANSPARENT) }
+        }
     }
 
-    private fun showStatsTab() {
+    // --- ВКЛАДКИ ---
+
+    private fun showHudTab() {
         contentContainer.removeAllViews()
         fpsText = createRow("FPS", "0")
-        ramText = createRow("RAM", "0")
+        pingText = createRow("Ping", "0 ms")
+        ramText = createRow("RAM", "0 MB")
+        cpsText = createRow("CPS", "0")
+        
+        stopwatchText = createRow("Match Time", "00:00")
+        createToggleRow("Start/Stop Time", false) { isChecked -> isStopwatchRunning = isChecked }
     }
 
-    private fun showRenderTab() {
+    private fun showPvpTab() {
         contentContainer.removeAllViews()
-        createToggleRow("Crosshair") { isChecked -> toggleCrosshair(isChecked) }
-        createToggleRow("No Hurt Cam") { }
-    }
-
-    private fun createRow(name: String, value: String): TextView {
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(20, 20, 20, 20)
-            gravity = Gravity.CENTER_VERTICAL
-            layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 10 }
-            background = GradientDrawable().apply { cornerRadius = 15f; setColor(Color.parseColor("#1A1A1A")) }
+        
+        createToggleRow("Crosshair", false) { isChecked -> toggleCrosshair(isChecked) }
+        
+        createButtonRow("Style: + / x / .") {
+            crosshairStyle = (crosshairStyle + 1) % 3
+            if (isCrosshairVisible) { toggleCrosshair(false); toggleCrosshair(true) }
         }
-
-        row.addView(TextView(this).apply {
-            text = name
-            setTextColor(Color.WHITE)
-            textSize = 14f
-            layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
-        })
-
-        val valueText = TextView(this).apply {
-            text = value
-            setTextColor(Color.parseColor("#3DDC84"))
-            textSize = 14f
-        }
-        row.addView(valueText)
-
-        contentContainer.addView(row)
-        return valueText
-    }
-
-    private fun createToggleRow(name: String, onChanged: (Boolean) -> Unit) {
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(20, 20, 20, 20)
-            gravity = Gravity.CENTER_VERTICAL
-            layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 10 }
-            background = GradientDrawable().apply { cornerRadius = 15f; setColor(Color.parseColor("#1A1A1A")) }
-        }
-
-        row.addView(TextView(this).apply {
-            text = name
-            setTextColor(Color.WHITE)
-            textSize = 14f
-            layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
-        })
-
-        var isOn = false
-        val toggleBtn = TextView(this).apply {
-            text = "OFF"
-            setTextColor(Color.GRAY)
-            textSize = 12f
-            setPadding(25, 10, 25, 10)
-            background = GradientDrawable().apply { cornerRadius = 20f; setColor(Color.parseColor("#333333")) }
-            setOnClickListener {
-                isOn = !isOn
-                text = if (isOn) "ON" else "OFF"
-                setTextColor(if (isOn) Color.parseColor("#3DDC84") else Color.GRAY)
-                background = GradientDrawable().apply { cornerRadius = 20f; setColor(if (isOn) Color.parseColor("#1A3A25") else Color.parseColor("#333333")) }
-                onChanged.invoke(isOn)
+        createButtonRow("Color: Green / Red / White") {
+            crosshairColor = when(crosshairColor) {
+                "#3DDC84" -> "#FF0000"
+                "#FF0000" -> "#FFFFFF"
+                else -> "#3DDC84"
             }
+            if (isCrosshairVisible) { toggleCrosshair(false); toggleCrosshair(true) }
         }
-        row.addView(toggleBtn)
-        contentContainer.addView(row)
+
+        createToggleRow("Vignette (Focus)", false) { isChecked -> toggleVignette(isChecked) }
+        createToggleRow("Dimmer (Night)", false) { isChecked -> toggleDimmer(isChecked) }
+        createToggleRow("Color Filter", false) { isChecked -> toggleFilter(isChecked) }
+    }
+
+    private fun showBedwarsTab() {
+        contentContainer.removeAllViews()
+        
+        createToggleRow("Emerald Timer", false) { isChecked -> toggleTimer(isChecked, 30, "Emerald") }
+        createToggleRow("Diamond Timer", false) { isChecked -> toggleTimer(isChecked, 15, "Diamond") }
+        
+        createButtonRow("Custom Timer (1m)") { toggleTimer(true, 60, "Custom") }
+        createButtonRow("Custom Timer (3m)") { toggleTimer(true, 180, "Custom") }
+        
+        itemCounterView = createRow("Item Count", "0")
+        createToggleRow("Show Counter", false) { isChecked -> toggleItemCounter(isChecked) }
+        createButtonRow("+1 Item") { 
+            itemCount++
+            itemCounterView?.text = "$itemCount"
+        }
+        createButtonRow("-1 Item") { 
+            if (itemCount > 0) itemCount--
+            itemCounterView?.text = "$itemCount"
+        }
+    }
+
+    private fun showMacrosTab() {
+        contentContainer.removeAllViews()
+        createButtonRow("Copy: /spawn") { copyToClipboard("/spawn") }
+        createButtonRow("Copy: /hub") { copyToClipboard("/hub") }
+        createButtonRow("Copy: GG") { copyToClipboard("GG") }
+        createButtonRow("Copy: Good Luck") { copyToClipboard("Good Luck!") }
+        createButtonRow("Copy: Rush") { copyToClipboard("Rushing!") }
+        createButtonRow("Copy: Defend") { copyToClipboard("Defending!") }
+    }
+
+    // --- ЛОГИКА ФУНКЦИЙ ---
+
+    private fun copyToClipboard(text: String) {
+        val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText("Macro", text))
+        Toast.makeText(this, "Copied: $text", Toast.LENGTH_SHORT).show()
     }
 
     private fun toggleCrosshair(show: Boolean) {
@@ -316,13 +376,16 @@ class OverlayService : Service() {
                 PixelFormat.TRANSLUCENT
             )
             params.gravity = Gravity.CENTER
-            val newCrosshair = TextView(this).apply {
-                text = "+"
-                setTextColor(Color.parseColor("#3DDC84"))
-                textSize = 40f
+            crosshairView = TextView(this).apply { 
+                text = when(crosshairStyle) {
+                    0 -> "+"
+                    1 -> "x"
+                    else -> "•"
+                }
+                setTextColor(Color.parseColor(crosshairColor))
+                textSize = 40f 
             }
-            crosshairView = newCrosshair
-            windowManager.addView(newCrosshair, params)
+            windowManager.addView(crosshairView, params)
             isCrosshairVisible = true
         } else {
             crosshairView?.let { windowManager.removeView(it) }
@@ -330,34 +393,106 @@ class OverlayService : Service() {
         }
     }
 
-    private fun startForegroundService() {
-        val channelId = "overlay_channel"
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(channelId, "Overlay", NotificationManager.IMPORTANCE_LOW)
-            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+    private fun toggleVignette(show: Boolean) {
+        if (show) {
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                PixelFormat.TRANSLUCENT
+            )
+            val vignette = GradientDrawable()
+            vignette.gradientType = GradientDrawable.RADIAL_GRADIENT
+            vignette.colors = intArrayOf(Color.TRANSPARENT, Color.parseColor("#AA000000"))
+            vignette.gradientRadius = 800f
+            
+            vignetteView = View(this).apply { background = vignette }
+            windowManager.addView(vignetteView, params)
+            isVignetteVisible = true
+        } else {
+            vignetteView?.let { windowManager.removeView(it) }
+            isVignetteVisible = false
         }
-        val notification = NotificationCompat.Builder(this, channelId)
-            .setContentTitle("Rich Bedrock").setContentText("Running")
-            .setSmallIcon(android.R.drawable.ic_menu_compass).build()
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                startForeground(1, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
-            } else {
-                startForeground(1, notification)
+    }
+
+    private fun toggleDimmer(show: Boolean) {
+        if (show) {
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                PixelFormat.TRANSLUCENT
+            )
+            dimmerView = View(this).apply { setBackgroundColor(Color.parseColor("#99000000")) }
+            windowManager.addView(dimmerView, params)
+            isDimmerVisible = true
+        } else {
+            dimmerView?.let { windowManager.removeView(it) }
+            isDimmerVisible = false
+        }
+    }
+
+    private fun toggleFilter(show: Boolean) {
+        if (show) {
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                PixelFormat.TRANSLUCENT
+            )
+            filterView = View(this).apply { setBackgroundColor(Color.parseColor("#33FFAA00")) } // Light Orange/Yellow
+            windowManager.addView(filterView, params)
+            isFilterVisible = true
+        } else {
+            filterView?.let { windowManager.removeView(it) }
+            isFilterVisible = false
+        }
+    }
+
+    private fun toggleItemCounter(show: Boolean) {
+        if (show) {
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                PixelFormat.TRANSLUCENT
+            )
+            params.gravity = Gravity.TOP or Gravity.END
+            params.x = 100
+            params.y = 300
+            itemCounterView = TextView(this).apply {
+                text = "Items: $itemCount"
+                setTextColor(Color.WHITE)
+                textSize = 18f
+                setPadding(20, 10, 20, 10)
+                background = GradientDrawable().apply { cornerRadius = 20f; setColor(Color.parseColor("#AA000000")) }
             }
-        } catch (e: Exception) { 
-            startForeground(1, notification) 
+            windowManager.addView(itemCounterView, params)
+            isCounterVisible = true
+        } else {
+            itemCounterView?.let { windowManager.removeView(it) }
+            isCounterVisible = false
         }
     }
 
-    private fun dp(v: Int): Int {
-        return (v * resources.displayMetrics.density).toInt()
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        handler.removeCallbacks(statsUpdater)
-        if (isCrosshairVisible) crosshairView?.let { windowManager.removeView(it) }
-        if (::fab.isInitialized && fab.isAttachedToWindow) windowManager.removeView(fab.parent as View)
-    }
-}
+    private fun toggleTimer(show: Boolean, seconds: Int, name: String) {
+        if (show) {
+            if (timerView != null) windowManager.removeView(timerView)
+            
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                PixelFormat.TRANSLUCENT
+            )
+            params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            params.y = 150
+            
+            timerView = TextView(this).apply {
+                text = "$name: ${seconds}s"
+                setTextColor(Color.WHITE)
+                textSize = 20f
+                setPadding(30, 15, 30, 15)
+                background = GradientDrawable().apply { cornerRadius = 20f; setColor(Color.parseColor("#AA000000")) }
+            }
+            windowManager.addView(timerView, pa
