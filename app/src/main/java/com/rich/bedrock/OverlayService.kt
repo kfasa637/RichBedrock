@@ -17,6 +17,7 @@ import android.os.CountDownTimer
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -77,7 +78,7 @@ class OverlayService : Service() {
             handler.post(statsUpdater)
             startFpsCounter()
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("OverlayError", "Error creating overlay", e)
         }
     }
 
@@ -87,14 +88,18 @@ class OverlayService : Service() {
                 val am = getSystemService(ACTIVITY_SERVICE) as ActivityManager
                 val mi = ActivityManager.MemoryInfo()
                 am.getMemoryInfo(mi)
-                if (::ramText.isInitialized) ramText.text = "${(mi.totalMem - mi.availMem) / (1024 * 1024)} MB"
+                if (::ramText.isInitialized) ramText.text = (mi.totalMem - mi.availMem) / (1024 * 1024).toString() + " MB"
 
                 Thread {
                     try {
                         val start = System.currentTimeMillis()
                         val reachable = java.net.InetAddress.getByName("8.8.8.8").isReachable(1000)
                         val time = System.currentTimeMillis() - start
-                        handler.post { if (::pingText.isInitialized) pingText.text = if (reachable) "${time} ms" else "ERR" }
+                        handler.post { 
+                            if (::pingText.isInitialized) {
+                                if (reachable) pingText.text = time.toString() + " ms" else pingText.text = "ERR"
+                            }
+                        }
                     } catch (e: Exception) {}
                 }.start()
 
@@ -109,7 +114,7 @@ class OverlayService : Service() {
             } catch (e: Exception) {}
             
             cpsCount = 0
-            if (::cpsText.isInitialized) cpsText.text = "$cpsCount"
+            if (::cpsText.isInitialized) cpsText.text = cpsCount.toString()
             handler.postDelayed(this, 1000)
         }
     }
@@ -121,11 +126,11 @@ class OverlayService : Service() {
                 if (lastFrameTime != 0L) {
                     val diff = frameTimeNanos - lastFrameTime
                     frames++
-                    if (diff >= 1_000_000_000L) {
-                        val fps = (frames * 1_000_000_000L / diff).toInt()
+                    if (diff >= 1000000000L) {
+                        val fps = (frames * 1000000000L / diff).toInt()
                         frames = 0
                         lastFrameTime = frameTimeNanos
-                        if (::fpsText.isInitialized) fpsText.text = "$fps"
+                        if (::fpsText.isInitialized) fpsText.text = fps.toString()
                     }
                 } else {
                     lastFrameTime = frameTimeNanos
@@ -151,7 +156,7 @@ class OverlayService : Service() {
 
         val container = FrameLayout(this)
 
-        // --- НОВЫЙ ДИЗАЙН КНОПКИ "R" ---
+        // НОВЫЙ ДИЗАЙН КНОПКИ R
         val fabBg = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Color.parseColor("#00FF87"), Color.parseColor("#00A854")))
         fabBg.shape = GradientDrawable.OVAL
         fabBg.setStroke(3, Color.WHITE)
@@ -164,7 +169,6 @@ class OverlayService : Service() {
             gravity = Gravity.CENTER
             setPadding(35, 35, 35, 35)
             background = fabBg
-            elevation = 15f // Тень
             
             setOnClickListener {
                 fab.visibility = View.GONE
@@ -180,7 +184,6 @@ class OverlayService : Service() {
                 setStroke(2, Color.parseColor("#3DDC84"))
             }
             visibility = View.GONE
-            elevation = 20f
         }
 
         val titleBar = LinearLayout(this).apply {
@@ -201,14 +204,13 @@ class OverlayService : Service() {
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
         })
 
-        // Кнопка "Свернуть" (крестик)
+        // Крестик - сворачивает меню
         titleBar.addView(TextView(this).apply {
-            text = "✕"
+            text = "X"
             setTextColor(Color.WHITE)
-            textSize = 24f
+            textSize = 22f
             setPadding(20, 0, 0, 0)
             setOnClickListener { 
-                // Теперь крестик просто сворачивает меню и возвращает кнопку R
                 mainMenu.visibility = View.GONE
                 fab.visibility = View.VISIBLE 
             }
@@ -222,8 +224,10 @@ class OverlayService : Service() {
             override fun onTouch(v: View?, event: MotionEvent): Boolean {
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
-                        initialX = params.x; initialY = params.y
-                        initialTouchX = event.rawX; initialTouchY = event.rawY
+                        initialX = params.x
+                        initialY = params.y
+                        initialTouchX = event.rawX
+                        initialTouchY = event.rawY
                         return true
                     }
                     MotionEvent.ACTION_MOVE -> {
@@ -312,7 +316,7 @@ class OverlayService : Service() {
         cpsText = createRow("CPS", "0")
         createButtonRow("CLICK ME (CPS)") {
             cpsCount++
-            cpsText.text = "$cpsCount"
+            cpsText.text = cpsCount.toString()
         }
 
         stopwatchText = createRow("Match Time", "00:00")
@@ -349,11 +353,11 @@ class OverlayService : Service() {
         createToggleRow("Show Counter", false) { isChecked -> toggleItemCounter(isChecked) }
         createButtonRow("+1 Item") { 
             itemCount++
-            itemCounterView?.text = "$itemCount"
+            itemCounterView?.text = itemCount.toString()
         }
         createButtonRow("-1 Item") { 
             if (itemCount > 0) itemCount--
-            itemCounterView?.text = "$itemCount"
+            itemCounterView?.text = itemCount.toString()
         }
     }
 
@@ -366,8 +370,8 @@ class OverlayService : Service() {
         createButtonRow("Copy: Rush") { copyToClipboard("Rushing!") }
         createButtonRow("Copy: Defend") { copyToClipboard("Defending!") }
         
-        // НОВАЯ КНОПКА ДЛЯ ПОЛНОГО ВЫКЛЮЧЕНИЯ ОВЕРЛЕЯ
-        createButtonRow("❌ STOP OVERLAY") { 
+        // Полное выключение оверлея
+        createButtonRow("STOP OVERLAY") { 
             stopSelf() 
         }
     }
@@ -375,7 +379,7 @@ class OverlayService : Service() {
     private fun copyToClipboard(text: String) {
         val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newPlainText("Macro", text))
-        Toast.makeText(this, "Copied: $text", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Copied!", Toast.LENGTH_SHORT).show()
     }
 
     private fun toggleCrosshair(show: Boolean) {
@@ -391,7 +395,7 @@ class OverlayService : Service() {
                 text = when(crosshairStyle) {
                     0 -> "+"
                     1 -> "x"
-                    else -> "•"
+                    else -> "."
                 }
                 setTextColor(Color.parseColor(crosshairColor))
                 textSize = 40f 
@@ -450,7 +454,7 @@ class OverlayService : Service() {
             params.x = 100
             params.y = 300
             itemCounterView = TextView(this).apply {
-                text = "Items: $itemCount"
+                text = "Items: 0"
                 setTextColor(Color.WHITE)
                 textSize = 18f
                 setPadding(20, 10, 20, 10)
@@ -476,7 +480,7 @@ class OverlayService : Service() {
             params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             params.y = 150
             timerView = TextView(this).apply {
-                text = "$name: ${seconds}s"
+                text = name + ": " + seconds + "s"
                 setTextColor(Color.WHITE)
                 textSize = 20f
                 setPadding(30, 15, 30, 15)
@@ -487,8 +491,7 @@ class OverlayService : Service() {
             timerCountdown?.cancel()
             timerCountdown = object : CountDownTimer((seconds * 1000).toLong(), 1000) {
                 override fun onTick(millisUntilFinished: Long) {
-                    timerView?.text = "$name: ${millisUntilFinished / 1000}s"
+                    timerView?.text = name + ": " + (millisUntilFinished / 1000) + "s"
                 }
                 override fun onFinish() {
-                    timerView?.text = "$name: READY!"
-                    timerView?.setTextColor(Color.parseColor("#3
+  
