@@ -156,7 +156,6 @@ class OverlayService : Service() {
 
         val container = FrameLayout(this)
 
-        // НОВЫЙ ДИЗАЙН КНОПКИ R
         val fabBg = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Color.parseColor("#00FF87"), Color.parseColor("#00A854")))
         fabBg.shape = GradientDrawable.OVAL
         fabBg.setStroke(3, Color.WHITE)
@@ -204,7 +203,6 @@ class OverlayService : Service() {
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
         })
 
-        // Крестик - сворачивает меню
         titleBar.addView(TextView(this).apply {
             text = "X"
             setTextColor(Color.WHITE)
@@ -290,6 +288,8 @@ class OverlayService : Service() {
         highlightTab(tabHud, listOf(tabPvp, tabBedwars, tabMacros))
     }
 
+    // --- ЭЛЕМЕНТЫ ИНТЕРФЕЙСА ---
+
     private fun createTab(name: String) = TextView(this).apply {
         text = name
         setTextColor(Color.LTGRAY)
@@ -306,6 +306,79 @@ class OverlayService : Service() {
             it.background = GradientDrawable().apply { cornerRadius = 15f; setColor(Color.TRANSPARENT) }
         }
     }
+
+    private fun createRow(name: String, value: String): TextView {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(20, 20, 20, 20)
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 10 }
+            background = GradientDrawable().apply { cornerRadius = 15f; setColor(Color.parseColor("#1A1A1A")) }
+        }
+        row.addView(TextView(this).apply {
+            text = name
+            setTextColor(Color.WHITE)
+            textSize = 14f
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+        })
+        val valueText = TextView(this).apply {
+            text = value
+            setTextColor(Color.parseColor("#3DDC84"))
+            textSize = 14f
+        }
+        row.addView(valueText)
+        contentContainer.addView(row)
+        return valueText
+    }
+
+    private fun createToggleRow(name: String, initialState: Boolean, onChanged: (Boolean) -> Unit) {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(20, 20, 20, 20)
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 10 }
+            background = GradientDrawable().apply { cornerRadius = 15f; setColor(Color.parseColor("#1A1A1A")) }
+        }
+        row.addView(TextView(this).apply {
+            text = name
+            setTextColor(Color.WHITE)
+            textSize = 14f
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+        })
+        var isOn = initialState
+        val toggleBtn = TextView(this).apply {
+            text = if (isOn) "ON" else "OFF"
+            setTextColor(if (isOn) Color.parseColor("#3DDC84") else Color.GRAY)
+            textSize = 12f
+            setPadding(25, 10, 25, 10)
+            background = GradientDrawable().apply { cornerRadius = 20f; setColor(if (isOn) Color.parseColor("#1A3A25") else Color.parseColor("#333333")) }
+            setOnClickListener {
+                isOn = !isOn
+                text = if (isOn) "ON" else "OFF"
+                setTextColor(if (isOn) Color.parseColor("#3DDC84") else Color.GRAY)
+                background = GradientDrawable().apply { cornerRadius = 20f; setColor(if (isOn) Color.parseColor("#1A3A25") else Color.parseColor("#333333")) }
+                onChanged.invoke(isOn)
+            }
+        }
+        row.addView(toggleBtn)
+        contentContainer.addView(row)
+    }
+
+    private fun createButtonRow(name: String, onClick: () -> Unit) {
+        val btn = TextView(this).apply {
+            text = name
+            setTextColor(Color.WHITE)
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setPadding(20, 25, 20, 25)
+            background = GradientDrawable().apply { cornerRadius = 15f; setColor(Color.parseColor("#2A2A2A")) }
+            layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 10 }
+            setOnClickListener { onClick() }
+        }
+        contentContainer.addView(btn)
+    }
+
+    // --- ВКЛАДКИ ---
 
     private fun showHudTab() {
         contentContainer.removeAllViews()
@@ -369,12 +442,10 @@ class OverlayService : Service() {
         createButtonRow("Copy: Good Luck") { copyToClipboard("Good Luck!") }
         createButtonRow("Copy: Rush") { copyToClipboard("Rushing!") }
         createButtonRow("Copy: Defend") { copyToClipboard("Defending!") }
-        
-        // Полное выключение оверлея
-        createButtonRow("STOP OVERLAY") { 
-            stopSelf() 
-        }
+        createButtonRow("STOP OVERLAY") { stopSelf() }
     }
+
+    // --- ЛОГИКА ---
 
     private fun copyToClipboard(text: String) {
         val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
@@ -429,69 +500,4 @@ class OverlayService : Service() {
         if (show) {
             val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-                PixelFormat.TRANSLUCENT
-            )
-            nightModeView = View(this).apply { setBackgroundColor(Color.parseColor("#33000000")) }
-            windowManager.addView(nightModeView, params)
-            isNightModeVisible = true
-        } else {
-            nightModeView?.let { windowManager.removeView(it) }
-            isNightModeVisible = false
-        }
-    }
-
-    private fun toggleItemCounter(show: Boolean) {
-        if (show) {
-            val params = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-                PixelFormat.TRANSLUCENT
-            )
-            params.gravity = Gravity.TOP or Gravity.END
-            params.x = 100
-            params.y = 300
-            itemCounterView = TextView(this).apply {
-                text = "Items: 0"
-                setTextColor(Color.WHITE)
-                textSize = 18f
-                setPadding(20, 10, 20, 10)
-                background = GradientDrawable().apply { cornerRadius = 20f; setColor(Color.parseColor("#AA000000")) }
-            }
-            windowManager.addView(itemCounterView, params)
-            isCounterVisible = true
-        } else {
-            itemCounterView?.let { windowManager.removeView(it) }
-            isCounterVisible = false
-        }
-    }
-
-    private fun toggleTimer(show: Boolean, seconds: Int, name: String) {
-        if (show) {
-            if (timerView != null) windowManager.removeView(timerView)
-            val params = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-                PixelFormat.TRANSLUCENT
-            )
-            params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            params.y = 150
-            timerView = TextView(this).apply {
-                text = name + ": " + seconds + "s"
-                setTextColor(Color.WHITE)
-                textSize = 20f
-                setPadding(30, 15, 30, 15)
-                background = GradientDrawable().apply { cornerRadius = 20f; setColor(Color.parseColor("#AA000000")) }
-            }
-            windowManager.addView(timerView, params)
-            isTimerVisible = true
-            timerCountdown?.cancel()
-            timerCountdown = object : CountDownTimer((seconds * 1000).toLong(), 1000) {
-                override fun onTick(millisUntilFinished: Long) {
-                    timerView?.text = name + ": " + (millisUntilFinished / 1000) + "s"
-                }
-                override fun onFinish() {
-  
+                WindowManager.LayoutParams.TYPE_APPLI
