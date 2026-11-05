@@ -16,8 +16,15 @@ import android.os.CountDownTimer
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
-import android.view.*
-import android.widget.*
+import android.view.Gravity
+import android.view.MotionEvent
+import android.view.View
+import android.view.WindowManager
+import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.TextView
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 
 class OverlayService : Service() {
@@ -46,7 +53,7 @@ class OverlayService : Service() {
     private var isStopwatchRunning = false
     private var isCounterVisible = false
     
-    private var crosshairStyle = 0 // 0: +, 1: x, 2: .
+    private var crosshairStyle = 0
     private var crosshairColor = "#3DDC84"
     private var cpsCount = 0
     private var itemCount = 0
@@ -76,13 +83,11 @@ class OverlayService : Service() {
     private val statsUpdater = object : Runnable {
         override fun run() {
             try {
-                // RAM
                 val am = getSystemService(ACTIVITY_SERVICE) as ActivityManager
                 val mi = ActivityManager.MemoryInfo()
                 am.getMemoryInfo(mi)
                 if (::ramText.isInitialized) ramText.text = "${(mi.totalMem - mi.availMem) / (1024 * 1024)} MB"
 
-                // Ping
                 Thread {
                     try {
                         val start = System.currentTimeMillis()
@@ -92,7 +97,6 @@ class OverlayService : Service() {
                     } catch (e: Exception) {}
                 }.start()
 
-                // Stopwatch
                 if (isStopwatchRunning) {
                     stopwatchSeconds++
                     if (::stopwatchText.isInitialized) {
@@ -110,8 +114,8 @@ class OverlayService : Service() {
     }
 
     private fun startFpsCounter() {
-        val choreographer = Choreographer.getInstance()
-        val frameCallback = object : Choreographer.FrameCallback {
+        val choreographer = android.view.Choreographer.getInstance()
+        val frameCallback = object : android.view.Choreographer.FrameCallback {
             override fun doFrame(frameTimeNanos: Long) {
                 if (lastFrameTime != 0L) {
                     val diff = frameTimeNanos - lastFrameTime
@@ -288,8 +292,6 @@ class OverlayService : Service() {
         }
     }
 
-    // --- ВКЛАДКИ ---
-
     private fun showHudTab() {
         contentContainer.removeAllViews()
         fpsText = createRow("FPS", "0")
@@ -308,9 +310,7 @@ class OverlayService : Service() {
 
     private fun showPvpTab() {
         contentContainer.removeAllViews()
-        
         createToggleRow("Crosshair", false) { isChecked -> toggleCrosshair(isChecked) }
-        
         createButtonRow("Style: + / x / .") {
             crosshairStyle = (crosshairStyle + 1) % 3
             if (isCrosshairVisible) { toggleCrosshair(false); toggleCrosshair(true) }
@@ -323,17 +323,14 @@ class OverlayService : Service() {
             }
             if (isCrosshairVisible) { toggleCrosshair(false); toggleCrosshair(true) }
         }
-
         createToggleRow("Focus Mode", false) { isChecked -> toggleDimmer(isChecked, "#66000000") }
         createToggleRow("Night Mode", false) { isChecked -> toggleNightMode(isChecked) }
     }
 
     private fun showBedwarsTab() {
         contentContainer.removeAllViews()
-        
         createToggleRow("Emerald Timer", false) { isChecked -> toggleTimer(isChecked, 30, "Emerald") }
         createToggleRow("Diamond Timer", false) { isChecked -> toggleTimer(isChecked, 15, "Diamond") }
-        
         createButtonRow("Custom Timer (1m)") { toggleTimer(true, 60, "Custom") }
         createButtonRow("Custom Timer (3m)") { toggleTimer(true, 180, "Custom") }
         
@@ -358,8 +355,6 @@ class OverlayService : Service() {
         createButtonRow("Copy: Rush") { copyToClipboard("Rushing!") }
         createButtonRow("Copy: Defend") { copyToClipboard("Defending!") }
     }
-
-    // --- ЛОГИКА ФУНКЦИЙ ---
 
     private fun copyToClipboard(text: String) {
         val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
@@ -456,7 +451,6 @@ class OverlayService : Service() {
     private fun toggleTimer(show: Boolean, seconds: Int, name: String) {
         if (show) {
             if (timerView != null) windowManager.removeView(timerView)
-            
             val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
@@ -465,7 +459,6 @@ class OverlayService : Service() {
             )
             params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             params.y = 150
-            
             timerView = TextView(this).apply {
                 text = "$name: ${seconds}s"
                 setTextColor(Color.WHITE)
@@ -475,7 +468,6 @@ class OverlayService : Service() {
             }
             windowManager.addView(timerView, params)
             isTimerVisible = true
-            
             timerCountdown?.cancel()
             timerCountdown = object : CountDownTimer((seconds * 1000).toLong(), 1000) {
                 override fun onTick(millisUntilFinished: Long) {
@@ -493,12 +485,10 @@ class OverlayService : Service() {
         }
     }
 
-    // --- UI ЭЛЕМЕНТЫ ---
-
     private fun createRow(name: String, value: String): TextView {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(20, 20, 20, 20)
             gravity = Gravity.CENTER_VERTICAL
             layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 10 }
-            background = GradientD
+            background = Grad
