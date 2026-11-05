@@ -16,7 +16,6 @@ import android.os.Looper
 import android.view.*
 import android.widget.*
 import androidx.core.app.NotificationCompat
-import kotlin.math.roundToInt
 
 class OverlayService : Service() {
 
@@ -70,7 +69,8 @@ class OverlayService : Service() {
                     val diff = frameTimeNanos - lastFrameTime
                     frames++
                     if (diff >= 1_000_000_000L) {
-                        val fps = (frames * 1_000_000_000L / diff).roundToInt()
+                        // ИСПРАВЛЕНО: теперь toInt() вместо roundToInt()
+                        val fps = (frames * 1_000_000_000L / diff).toInt()
                         frames = 0
                         lastFrameTime = frameTimeNanos
                         if (::fpsText.isInitialized) fpsText.text = "$fps"
@@ -94,65 +94,64 @@ class OverlayService : Service() {
             PixelFormat.TRANSLUCENT
         )
         params.gravity = Gravity.TOP or Gravity.START
-        params.x = 150
+        params.x = 100
         params.y = 200
 
         val container = FrameLayout(this)
 
-        // Кнопка "R"
-        fab = TextView(this)
-        fab.text = "R"
-        fab.setTextColor(Color.WHITE)
-        fab.textSize = 22f
-        fab.gravity = Gravity.CENTER
-        fab.setPadding(30, 30, 30, 30)
-        val fabBg = GradientDrawable()
-        fabBg.shape = GradientDrawable.OVAL
-        fabBg.setColor(Color.parseColor("#1A1A1A"))
-        fabBg.setStroke(4, Color.parseColor("#3DDC84"))
-        fab.background = fabBg
-        fab.setOnClickListener {
-            fab.visibility = View.GONE
-            mainMenu.visibility = View.VISIBLE
+        fab = TextView(this).apply {
+            text = "R"
+            setTextColor(Color.WHITE)
+            textSize = 22f
+            gravity = Gravity.CENTER
+            setPadding(30, 30, 30, 30)
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.parseColor("#1A1A1A"))
+                setStroke(4, Color.parseColor("#3DDC84"))
+            }
+            setOnClickListener {
+                fab.visibility = View.GONE
+                mainMenu.visibility = View.VISIBLE
+            }
         }
 
-        // Главное меню
-        mainMenu = LinearLayout(this)
-        mainMenu.orientation = LinearLayout.VERTICAL
-        val menuBg = GradientDrawable()
-        menuBg.setColor(Color.parseColor("#F0101010"))
-        menuBg.cornerRadius = 30f
-        menuBg.setStroke(2, Color.parseColor("#333333"))
-        mainMenu.background = menuBg
-        mainMenu.visibility = View.GONE
+        mainMenu = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#F0101010"))
+                cornerRadius = 30f
+                setStroke(2, Color.parseColor("#333333"))
+            }
+            visibility = View.GONE
+        }
 
-        // Шапка (Title Bar)
-        val titleBar = LinearLayout(this)
-        titleBar.orientation = LinearLayout.HORIZONTAL
-        titleBar.setPadding(30, 20, 30, 20)
-        val titleBg = GradientDrawable()
-        titleBg.setColor(Color.parseColor("#1E1E1E"))
-        titleBg.cornerRadii = floatArrayOf(30f, 30f, 0f, 0f, 0f, 0f, 30f, 30f)
-        titleBar.background = titleBg
-        titleBar.gravity = Gravity.CENTER_VERTICAL
+        val titleBar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(30, 20, 30, 20)
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#1E1E1E"))
+                cornerRadii = floatArrayOf(30f, 30f, 0f, 0f, 0f, 0f, 30f, 30f)
+            }
+            gravity = Gravity.CENTER_VERTICAL
+        }
 
-        val titleText = TextView(this)
-        titleText.text = "RICH CLIENT"
-        titleText.setTextColor(Color.parseColor("#3DDC84"))
-        titleText.textSize = 16f
-        titleText.setTypeface(null, android.graphics.Typeface.BOLD)
-        titleText.layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
-        titleBar.addView(titleText)
+        titleBar.addView(TextView(this).apply {
+            text = "RICH CLIENT"
+            setTextColor(Color.parseColor("#3DDC84"))
+            textSize = 16f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+        })
 
-        val closeBtn = TextView(this)
-        closeBtn.text = "✕"
-        closeBtn.setTextColor(Color.RED)
-        closeBtn.textSize = 22f
-        closeBtn.setPadding(20, 0, 0, 0)
-        closeBtn.setOnClickListener { stopSelf() }
-        titleBar.addView(closeBtn)
+        titleBar.addView(TextView(this).apply {
+            text = "✕"
+            setTextColor(Color.RED)
+            textSize = 22f
+            setPadding(20, 0, 0, 0)
+            setOnClickListener { stopSelf() }
+        })
 
-        // Перетаскивание меню
         titleBar.setOnTouchListener(object : View.OnTouchListener {
             private var initialX = 0
             private var initialY = 0
@@ -175,53 +174,34 @@ class OverlayService : Service() {
                 return false
             }
         })
+
         mainMenu.addView(titleBar)
 
-        // Тело меню
-        val bodyLayout = LinearLayout(this)
-        bodyLayout.orientation = LinearLayout.HORIZONTAL
-        bodyLayout.setPadding(20, 20, 20, 20)
-        bodyLayout.layoutParams = LinearLayout.LayoutParams(dp(320), dp(350))
+        val bodyLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(20, 20, 20, 20)
+            layoutParams = LinearLayout.LayoutParams(dp(320), dp(350))
+        }
 
-        // Левая колонка (Вкладки)
-        val tabsLayout = LinearLayout(this)
-        tabsLayout.orientation = LinearLayout.VERTICAL
-        tabsLayout.layoutParams = LinearLayout.LayoutParams(dp(90), -1)
-        tabsLayout.setPadding(0, 0, 20, 0)
+        val tabsLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(dp(90), -1)
+            setPadding(0, 0, 20, 0)
+        }
         
-        // Правая колонка (Контент)
-        val contentScroll = ScrollView(this)
-        contentScroll.layoutParams = LinearLayout.LayoutParams(0, -1, 1f)
-        contentContainer = LinearLayout(this)
-        contentContainer.orientation = LinearLayout.VERTICAL
+        val contentScroll = ScrollView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(0, -1, 1f)
+        }
+        contentContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
         contentScroll.addView(contentContainer)
 
-        // Вкладки
-        val tabStats = TextView(this)
-        tabStats.text = "Stats"
-        tabStats.textSize = 14f
-        tabStats.setPadding(20, 20, 20, 20)
+        val tabStats = createTab("Stats")
+        val tabRender = createTab("Render")
 
-        val tabRender = TextView(this)
-        tabRender.text = "Render"
-        tabRender.textSize = 14f
-        tabRender.setPadding(20, 20, 20, 20)
-
-        tabStats.setOnClickListener { 
-            showStatsTab()
-            tabStats.setTextColor(Color.parseColor("#3DDC84"))
-            val bg = GradientDrawable(); bg.cornerRadius = 15f; bg.setColor(Color.parseColor("#2A2A2A")); tabStats.background = bg
-            tabRender.setTextColor(Color.LTGRAY)
-            val bg2 = GradientDrawable(); bg2.cornerRadius = 15f; bg2.setColor(Color.TRANSPARENT); tabRender.background = bg2
-        }
-        
-        tabRender.setOnClickListener { 
-            showRenderTab()
-            tabRender.setTextColor(Color.parseColor("#3DDC84"))
-            val bg = GradientDrawable(); bg.cornerRadius = 15f; bg.setColor(Color.parseColor("#2A2A2A")); tabRender.background = bg
-            tabStats.setTextColor(Color.LTGRAY)
-            val bg2 = GradientDrawable(); bg2.cornerRadius = 15f; bg2.setColor(Color.TRANSPARENT); tabStats.background = bg2
-        }
+        tabStats.setOnClickListener { showStatsTab(); highlightTab(tabStats, tabRender) }
+        tabRender.setOnClickListener { showRenderTab(); highlightTab(tabRender, tabStats) }
 
         tabsLayout.addView(tabStats)
         tabsLayout.addView(tabRender)
@@ -234,10 +214,23 @@ class OverlayService : Service() {
         container.addView(mainMenu)
         windowManager.addView(container, params)
 
-        // Стартуем со вкладки Stats
         showStatsTab()
-        tabStats.setTextColor(Color.parseColor("#3DDC84"))
-        val bg = GradientDrawable(); bg.cornerRadius = 15f; bg.setColor(Color.parseColor("#2A2A2A")); tabStats.background = bg
+        highlightTab(tabStats, tabRender)
+    }
+
+    private fun createTab(name: String) = TextView(this).apply {
+        text = name
+        setTextColor(Color.LTGRAY)
+        textSize = 14f
+        setPadding(20, 20, 20, 20)
+        background = GradientDrawable().apply { cornerRadius = 15f; setColor(Color.TRANSPARENT) }
+    }
+
+    private fun highlightTab(selected: TextView, other: TextView) {
+        selected.setTextColor(Color.parseColor("#3DDC84"))
+        selected.background = GradientDrawable().apply { cornerRadius = 15f; setColor(Color.parseColor("#2A2A2A")) }
+        other.setTextColor(Color.LTGRAY)
+        other.background = GradientDrawable().apply { cornerRadius = 15f; setColor(Color.TRANSPARENT) }
     }
 
     private fun showStatsTab() {
@@ -252,62 +245,63 @@ class OverlayService : Service() {
         createToggleRow("No Hurt Cam") { }
     }
 
-    // Создает простую строку (для Статистики)
     private fun createRow(name: String, value: String): TextView {
-        val row = LinearLayout(this)
-        row.orientation = LinearLayout.HORIZONTAL
-        row.setPadding(20, 20, 20, 20)
-        row.gravity = Gravity.CENTER_VERTICAL
-        row.layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 10 }
-        val rowBg = GradientDrawable(); rowBg.cornerRadius = 15f; rowBg.setColor(Color.parseColor("#1A1A1A")); row.background = rowBg
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(20, 20, 20, 20)
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 10 }
+            background = GradientDrawable().apply { cornerRadius = 15f; setColor(Color.parseColor("#1A1A1A")) }
+        }
 
-        val nameText = TextView(this)
-        nameText.text = name
-        nameText.setTextColor(Color.WHITE)
-        nameText.textSize = 14f
-        nameText.layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
-        row.addView(nameText)
+        row.addView(TextView(this).apply {
+            text = name
+            setTextColor(Color.WHITE)
+            textSize = 14f
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+        })
 
-        val valueText = TextView(this)
-        valueText.text = value
-        valueText.setTextColor(Color.parseColor("#3DDC84"))
-        valueText.textSize = 14f
+        val valueText = TextView(this).apply {
+            text = value
+            setTextColor(Color.parseColor("#3DDC84"))
+            textSize = 14f
+        }
         row.addView(valueText)
 
         contentContainer.addView(row)
         return valueText
     }
 
-    // Создает строку с кнопкой ВКЛ/ВЫКЛ (для Рендера)
     private fun createToggleRow(name: String, onChanged: (Boolean) -> Unit) {
-        val row = LinearLayout(this)
-        row.orientation = LinearLayout.HORIZONTAL
-        row.setPadding(20, 20, 20, 20)
-        row.gravity = Gravity.CENTER_VERTICAL
-        row.layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 10 }
-        val rowBg = GradientDrawable(); rowBg.cornerRadius = 15f; rowBg.setColor(Color.parseColor("#1A1A1A")); row.background = rowBg
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(20, 20, 20, 20)
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 10 }
+            background = GradientDrawable().apply { cornerRadius = 15f; setColor(Color.parseColor("#1A1A1A")) }
+        }
 
-        val nameText = TextView(this)
-        nameText.text = name
-        nameText.setTextColor(Color.WHITE)
-        nameText.textSize = 14f
-        nameText.layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
-        row.addView(nameText)
+        row.addView(TextView(this).apply {
+            text = name
+            setTextColor(Color.WHITE)
+            textSize = 14f
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+        })
 
         var isOn = false
-        val toggleBtn = TextView(this)
-        toggleBtn.text = "OFF"
-        toggleBtn.setTextColor(Color.GRAY)
-        toggleBtn.textSize = 12f
-        toggleBtn.setPadding(25, 10, 25, 10)
-        val btnBg = GradientDrawable(); btnBg.cornerRadius = 20f; btnBg.setColor(Color.parseColor("#333333")); toggleBtn.background = btnBg
-        
-        toggleBtn.setOnClickListener {
-            isOn = !isOn
-            toggleBtn.text = if (isOn) "ON" else "OFF"
-            toggleBtn.setTextColor(if (isOn) Color.parseColor("#3DDC84") else Color.GRAY)
-            val b = GradientDrawable(); b.cornerRadius = 20f; b.setColor(if (isOn) Color.parseColor("#1A3A25") else Color.parseColor("#333333")); toggleBtn.background = b
-            onChanged.invoke(isOn)
+        val toggleBtn = TextView(this).apply {
+            text = "OFF"
+            setTextColor(Color.GRAY)
+            textSize = 12f
+            setPadding(25, 10, 25, 10)
+            background = GradientDrawable().apply { cornerRadius = 20f; setColor(Color.parseColor("#333333")) }
+            setOnClickListener {
+                isOn = !isOn
+                text = if (isOn) "ON" else "OFF"
+                setTextColor(if (isOn) Color.parseColor("#3DDC84") else Color.GRAY)
+                background = GradientDrawable().apply { cornerRadius = 20f; setColor(if (isOn) Color.parseColor("#1A3A25") else Color.parseColor("#333333")) }
+                onChanged.invoke(isOn)
+            }
         }
         row.addView(toggleBtn)
         contentContainer.addView(row)
@@ -322,13 +316,13 @@ class OverlayService : Service() {
                 PixelFormat.TRANSLUCENT
             )
             params.gravity = Gravity.CENTER
-            crosshairView = TextView(this)
-            crosshairView?.let {
-                (it as TextView).text = "+"
-                (it as TextView).setTextColor(Color.parseColor("#3DDC84"))
-                (it as TextView).textSize = 40f
+            val newCrosshair = TextView(this).apply {
+                text = "+"
+                setTextColor(Color.parseColor("#3DDC84"))
+                textSize = 40f
             }
-            windowManager.addView(crosshairView, params)
+            crosshairView = newCrosshair
+            windowManager.addView(newCrosshair, params)
             isCrosshairVisible = true
         } else {
             crosshairView?.let { windowManager.removeView(it) }
@@ -346,9 +340,14 @@ class OverlayService : Service() {
             .setContentTitle("Rich Bedrock").setContentText("Running")
             .setSmallIcon(android.R.drawable.ic_menu_compass).build()
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) startForeground(1, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
-            else startForeground(1, notification)
-        } catch (e: Exception) { startForeground(1, notification) }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(1, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+            } else {
+                startForeground(1, notification)
+            }
+        } catch (e: Exception) { 
+            startForeground(1, notification) 
+        }
     }
 
     private fun dp(v: Int): Int {
