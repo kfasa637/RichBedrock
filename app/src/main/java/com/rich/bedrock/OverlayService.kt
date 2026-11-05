@@ -19,8 +19,6 @@ import android.os.Looper
 import android.view.*
 import android.widget.*
 import androidx.core.app.NotificationCompat
-import java.text.SimpleDateFormat
-import java.util.*
 
 class OverlayService : Service() {
 
@@ -34,18 +32,16 @@ class OverlayService : Service() {
     private lateinit var ramText: TextView
     private lateinit var cpsText: TextView
     private lateinit var stopwatchText: TextView
+    private lateinit var itemCounterView: TextView
     
     private var crosshairView: View? = null
     private var dimmerView: View? = null
-    private var vignetteView: View? = null
-    private var filterView: View? = null
+    private var nightModeView: View? = null
     private var timerView: TextView? = null
-    private var itemCounterView: TextView? = null
     
     private var isCrosshairVisible = false
     private var isDimmerVisible = false
-    private var isVignetteVisible = false
-    private var isFilterVisible = false
+    private var isNightModeVisible = false
     private var isTimerVisible = false
     private var isStopwatchRunning = false
     private var isCounterVisible = false
@@ -249,7 +245,7 @@ class OverlayService : Service() {
         contentScroll.addView(contentContainer)
 
         val tabHud = createTab("HUD")
-        val tabPvp = createTab("PvP Tools")
+        val tabPvp = createTab("PvP")
         val tabBedwars = createTab("Bedwars")
         val tabMacros = createTab("Macros")
 
@@ -299,8 +295,13 @@ class OverlayService : Service() {
         fpsText = createRow("FPS", "0")
         pingText = createRow("Ping", "0 ms")
         ramText = createRow("RAM", "0 MB")
-        cpsText = createRow("CPS", "0")
         
+        cpsText = createRow("CPS", "0")
+        createButtonRow("CLICK ME (CPS)") {
+            cpsCount++
+            cpsText.text = "$cpsCount"
+        }
+
         stopwatchText = createRow("Match Time", "00:00")
         createToggleRow("Start/Stop Time", false) { isChecked -> isStopwatchRunning = isChecked }
     }
@@ -314,7 +315,7 @@ class OverlayService : Service() {
             crosshairStyle = (crosshairStyle + 1) % 3
             if (isCrosshairVisible) { toggleCrosshair(false); toggleCrosshair(true) }
         }
-        createButtonRow("Color: Green / Red / White") {
+        createButtonRow("Color: Green/Red/White") {
             crosshairColor = when(crosshairColor) {
                 "#3DDC84" -> "#FF0000"
                 "#FF0000" -> "#FFFFFF"
@@ -323,9 +324,8 @@ class OverlayService : Service() {
             if (isCrosshairVisible) { toggleCrosshair(false); toggleCrosshair(true) }
         }
 
-        createToggleRow("Vignette (Focus)", false) { isChecked -> toggleVignette(isChecked) }
-        createToggleRow("Dimmer (Night)", false) { isChecked -> toggleDimmer(isChecked) }
-        createToggleRow("Color Filter", false) { isChecked -> toggleFilter(isChecked) }
+        createToggleRow("Focus Mode", false) { isChecked -> toggleDimmer(isChecked, "#66000000") }
+        createToggleRow("Night Mode", false) { isChecked -> toggleNightMode(isChecked) }
     }
 
     private fun showBedwarsTab() {
@@ -393,7 +393,7 @@ class OverlayService : Service() {
         }
     }
 
-    private fun toggleVignette(show: Boolean) {
+    private fun toggleDimmer(show: Boolean, colorHex: String) {
         if (show) {
             val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
@@ -401,29 +401,7 @@ class OverlayService : Service() {
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
                 PixelFormat.TRANSLUCENT
             )
-            val vignette = GradientDrawable()
-            vignette.gradientType = GradientDrawable.RADIAL_GRADIENT
-            vignette.colors = intArrayOf(Color.TRANSPARENT, Color.parseColor("#AA000000"))
-            vignette.gradientRadius = 800f
-            
-            vignetteView = View(this).apply { background = vignette }
-            windowManager.addView(vignetteView, params)
-            isVignetteVisible = true
-        } else {
-            vignetteView?.let { windowManager.removeView(it) }
-            isVignetteVisible = false
-        }
-    }
-
-    private fun toggleDimmer(show: Boolean) {
-        if (show) {
-            val params = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-                PixelFormat.TRANSLUCENT
-            )
-            dimmerView = View(this).apply { setBackgroundColor(Color.parseColor("#99000000")) }
+            dimmerView = View(this).apply { setBackgroundColor(Color.parseColor(colorHex)) }
             windowManager.addView(dimmerView, params)
             isDimmerVisible = true
         } else {
@@ -432,7 +410,7 @@ class OverlayService : Service() {
         }
     }
 
-    private fun toggleFilter(show: Boolean) {
+    private fun toggleNightMode(show: Boolean) {
         if (show) {
             val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
@@ -440,12 +418,12 @@ class OverlayService : Service() {
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
                 PixelFormat.TRANSLUCENT
             )
-            filterView = View(this).apply { setBackgroundColor(Color.parseColor("#33FFAA00")) } // Light Orange/Yellow
-            windowManager.addView(filterView, params)
-            isFilterVisible = true
+            nightModeView = View(this).apply { setBackgroundColor(Color.parseColor("#33000000")) }
+            windowManager.addView(nightModeView, params)
+            isNightModeVisible = true
         } else {
-            filterView?.let { windowManager.removeView(it) }
-            isFilterVisible = false
+            nightModeView?.let { windowManager.removeView(it) }
+            isNightModeVisible = false
         }
     }
 
@@ -495,4 +473,32 @@ class OverlayService : Service() {
                 setPadding(30, 15, 30, 15)
                 background = GradientDrawable().apply { cornerRadius = 20f; setColor(Color.parseColor("#AA000000")) }
             }
-            windowManager.addView(timerView, pa
+            windowManager.addView(timerView, params)
+            isTimerVisible = true
+            
+            timerCountdown?.cancel()
+            timerCountdown = object : CountDownTimer((seconds * 1000).toLong(), 1000) {
+                override fun onTick(millisUntilFinished: Long) {
+                    timerView?.text = "$name: ${millisUntilFinished / 1000}s"
+                }
+                override fun onFinish() {
+                    timerView?.text = "$name: READY!"
+                    timerView?.setTextColor(Color.parseColor("#3DDC84"))
+                }
+            }.start()
+        } else {
+            timerView?.let { windowManager.removeView(it) }
+            isTimerVisible = false
+            timerCountdown?.cancel()
+        }
+    }
+
+    // --- UI ЭЛЕМЕНТЫ ---
+
+    private fun createRow(name: String, value: String): TextView {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(20, 20, 20, 20)
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 10 }
+            background = GradientD
