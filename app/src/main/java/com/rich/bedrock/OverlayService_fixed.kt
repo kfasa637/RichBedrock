@@ -632,7 +632,9 @@ class OverlayService : Service() {
             ).show()
         }
         createButtonRow("Reset resource and item counters") {
-            resourceCounts.keys.forEach { resourceCounts[resource] = 0 }
+            resourceCounts.keys.forEach { key ->
+    resourceCounts[key] = 0
+            }
             itemCount = 0
             showBedwarsTab()
         }
