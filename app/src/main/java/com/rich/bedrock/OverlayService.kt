@@ -17,7 +17,6 @@ import android.os.CountDownTimer
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
-import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -78,7 +77,7 @@ class OverlayService : Service() {
             handler.post(statsUpdater)
             startFpsCounter()
         } catch (e: Exception) {
-            Log.e("OverlayError", "Error creating overlay", e)
+            // error silently ignored to prevent crash
         }
     }
 
@@ -88,7 +87,10 @@ class OverlayService : Service() {
                 val am = getSystemService(ACTIVITY_SERVICE) as ActivityManager
                 val mi = ActivityManager.MemoryInfo()
                 am.getMemoryInfo(mi)
-                if (::ramText.isInitialized) ramText.text = (mi.totalMem - mi.availMem) / (1024 * 1024).toString() + " MB"
+                if (::ramText.isInitialized) {
+                    val usedRam = (mi.totalMem - mi.availMem) / (1024 * 1024)
+                    ramText.text = "$usedRam MB"
+                }
 
                 Thread {
                     try {
@@ -97,7 +99,7 @@ class OverlayService : Service() {
                         val time = System.currentTimeMillis() - start
                         handler.post { 
                             if (::pingText.isInitialized) {
-                                if (reachable) pingText.text = time.toString() + " ms" else pingText.text = "ERR"
+                                if (reachable) pingText.text = "$time ms" else pingText.text = "ERR"
                             }
                         }
                     } catch (e: Exception) {}
@@ -114,7 +116,7 @@ class OverlayService : Service() {
             } catch (e: Exception) {}
             
             cpsCount = 0
-            if (::cpsText.isInitialized) cpsText.text = cpsCount.toString()
+            if (::cpsText.isInitialized) cpsText.text = "$cpsCount"
             handler.postDelayed(this, 1000)
         }
     }
@@ -130,7 +132,7 @@ class OverlayService : Service() {
                         val fps = (frames * 1000000000L / diff).toInt()
                         frames = 0
                         lastFrameTime = frameTimeNanos
-                        if (::fpsText.isInitialized) fpsText.text = fps.toString()
+                        if (::fpsText.isInitialized) fpsText.text = "$fps"
                     }
                 } else {
                     lastFrameTime = frameTimeNanos
@@ -288,8 +290,6 @@ class OverlayService : Service() {
         highlightTab(tabHud, listOf(tabPvp, tabBedwars, tabMacros))
     }
 
-    // --- ЭЛЕМЕНТЫ ИНТЕРФЕЙСА ---
-
     private fun createTab(name: String) = TextView(this).apply {
         text = name
         setTextColor(Color.LTGRAY)
@@ -378,8 +378,6 @@ class OverlayService : Service() {
         contentContainer.addView(btn)
     }
 
-    // --- ВКЛАДКИ ---
-
     private fun showHudTab() {
         contentContainer.removeAllViews()
         fpsText = createRow("FPS", "0")
@@ -389,7 +387,7 @@ class OverlayService : Service() {
         cpsText = createRow("CPS", "0")
         createButtonRow("CLICK ME (CPS)") {
             cpsCount++
-            cpsText.text = cpsCount.toString()
+            cpsText.text = "$cpsCount"
         }
 
         stopwatchText = createRow("Match Time", "00:00")
@@ -401,7 +399,10 @@ class OverlayService : Service() {
         createToggleRow("Crosshair", false) { isChecked -> toggleCrosshair(isChecked) }
         createButtonRow("Style: + / x / .") {
             crosshairStyle = (crosshairStyle + 1) % 3
-            if (isCrosshairVisible) { toggleCrosshair(false); toggleCrosshair(true) }
+            if (isCrosshairVisible) { 
+                toggleCrosshair(false)
+                toggleCrosshair(true) 
+            }
         }
         createButtonRow("Color: Green/Red/White") {
             crosshairColor = when(crosshairColor) {
@@ -409,7 +410,10 @@ class OverlayService : Service() {
                 "#FF0000" -> "#FFFFFF"
                 else -> "#3DDC84"
             }
-            if (isCrosshairVisible) { toggleCrosshair(false); toggleCrosshair(true) }
+            if (isCrosshairVisible) { 
+                toggleCrosshair(false)
+                toggleCrosshair(true) 
+            }
         }
         createToggleRow("Focus Mode", false) { isChecked -> toggleDimmer(isChecked, "#66000000") }
         createToggleRow("Night Mode", false) { isChecked -> toggleNightMode(isChecked) }
@@ -426,11 +430,11 @@ class OverlayService : Service() {
         createToggleRow("Show Counter", false) { isChecked -> toggleItemCounter(isChecked) }
         createButtonRow("+1 Item") { 
             itemCount++
-            itemCounterView?.text = itemCount.toString()
+            if (::itemCounterView.isInitialized) itemCounterView.text = "$itemCount"
         }
         createButtonRow("-1 Item") { 
             if (itemCount > 0) itemCount--
-            itemCounterView?.text = itemCount.toString()
+            if (::itemCounterView.isInitialized) itemCounterView.text = "$itemCount"
         }
     }
 
@@ -445,8 +449,6 @@ class OverlayService : Service() {
         createButtonRow("STOP OVERLAY") { stopSelf() }
     }
 
-    // --- ЛОГИКА ---
-
     private fun copyToClipboard(text: String) {
         val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newPlainText("Macro", text))
@@ -456,8 +458,9 @@ class OverlayService : Service() {
     private fun toggleCrosshair(show: Boolean) {
         if (show) {
             val params = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.WRAP_CONTENT, 
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
                 PixelFormat.TRANSLUCENT
             )
@@ -482,8 +485,9 @@ class OverlayService : Service() {
     private fun toggleDimmer(show: Boolean, colorHex: String) {
         if (show) {
             val params = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.MATCH_PARENT, 
+                WindowManager.LayoutParams.MATCH_PARENT,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
                 PixelFormat.TRANSLUCENT
             )
@@ -493,11 +497,4 @@ class OverlayService : Service() {
         } else {
             dimmerView?.let { windowManager.removeView(it) }
             isDimmerVisible = false
-        }
-    }
-
-    private fun toggleNightMode(show: Boolean) {
-        if (show) {
-            val params = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.TYPE_APPLI
+   
